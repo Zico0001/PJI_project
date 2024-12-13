@@ -50,7 +50,7 @@ def main():
     st.title("Interactive Map Viewer")
 
     # Upload dataset
-    uploaded_file = st.file_uploader("Upload your dataset (Excel format):", type=["csv"])
+    uploaded_file = st.file_uploader("Upload your dataset (CSV format):", type=["csv"])
     if uploaded_file:
         df = pd.read_csv(uploaded_file)
         data = df.to_dict(orient="records")
@@ -71,7 +71,7 @@ def main():
         if st.button("Save Map as HTML"):
             output_path = os.path.join(os.getcwd(), "generated_map.html")
             map_object.save(output_path)
-            st.success("Map has been saved as 'exported_map.html' in your working directory.")
+            st.success("Map has been saved as 'exported_map.html' in your working directory {output_path}.")
 
 if __name__ == "__main__":
     main()
