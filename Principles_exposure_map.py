@@ -69,7 +69,7 @@ def main():
 
         # Button to save/export map as HTML
         if st.button("Save Map as HTML"):
-            map_object.save('Principles_Map')
+            map_object.save('Principles_Map.html')
             
             # Generate download link
             with open("Principles_Map.html", "rb") as f:
