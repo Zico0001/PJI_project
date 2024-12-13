@@ -49,9 +49,9 @@ def main():
     st.title("Interactive Map Viewer")
 
     # Upload dataset
-    uploaded_file = st.file_uploader("Upload your dataset (Excel format):", type=["cvs"])
+    uploaded_file = st.file_uploader("Upload your dataset (Excel format):", type=["csv"])
     if uploaded_file:
-        df = pd.read_cvs(uploaded_file)
+        df = pd.read_csv(uploaded_file)
         data = df.to_dict(orient="records")
 
         st.sidebar.header("Filter Options")
