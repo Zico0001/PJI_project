@@ -69,9 +69,15 @@ def main():
 
         # Button to save/export map as HTML
         if st.button("Save Map as HTML"):
-            output_path = os.path.join(os.getcwd(), "generated_map.html")
-            map_object.save(output_path)
-            st.success("Map has been saved as 'exported_map.html' in your working directory {output_path}.")
+            map_object.save('Principles_Map')
+            
+            # Generate download link
+           with open("Principles_Map.html", "rb") as f:
+               html_bytes = f.read()
+           encoded_html = base64.b64encode(html_bytes).decode()
+           href = f'<a href="data:text/html;base64,{encoded_html}" download="Principles_Map.html">Download HTML File</a>'
+           st.markdown(href, unsafe_allow_html=True)
+           st.success("Map has been saved as 'Principles_Map.html' in your working directory.")
 
 if __name__ == "__main__":
     main()
