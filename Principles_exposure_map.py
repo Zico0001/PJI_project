@@ -72,12 +72,12 @@ def main():
             map_object.save('Principles_Map')
             
             # Generate download link
-           with open("Principles_Map.html", "rb") as f:
+            with open("Principles_Map.html", "rb") as f:
                html_bytes = f.read()
-           encoded_html = base64.b64encode(html_bytes).decode()
-           href = f'<a href="data:text/html;base64,{encoded_html}" download="Principles_Map.html">Download HTML File</a>'
-           st.markdown(href, unsafe_allow_html=True)
-           st.success("Map has been saved as 'Principles_Map.html' in your working directory.")
+            encoded_html = base64.b64encode(html_bytes).decode()
+            href = f'<a href="data:text/html;base64,{encoded_html}" download="Principles_Map.html">Download HTML File</a>'
+            st.markdown(href, unsafe_allow_html=True)
+            st.success("Map has been saved as 'Principles_Map.html' in your working directory.")
 
 if __name__ == "__main__":
     main()
