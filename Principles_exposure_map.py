@@ -68,7 +68,8 @@ def main():
 
         # Button to save/export map as HTML
         if st.button("Save Map as HTML"):
-            map_object.save("exported_map.html")
+            output_path = os.path.join(os.getcwd(), "generated_map.html")
+            map_object.save(output_path)
             st.success("Map has been saved as 'exported_map.html' in your working directory.")
 
 if __name__ == "__main__":
