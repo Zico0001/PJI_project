@@ -177,7 +177,7 @@ def generate_map(data, year=None, names=None):
 
 # Streamlit app
 def main():
-    st.title("Interactive Map Viewer")
+    st.title("PJI Principles Map Viewer")
 
     # Upload dataset
     uploaded_file = st.file_uploader("Upload your dataset (CSV format):", type=["csv"])
