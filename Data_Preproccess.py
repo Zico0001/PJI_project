@@ -89,25 +89,7 @@ def add_geocoded_columns_to_excel(excel_file, address_column, people_column, img
 
     return consolidated_data
 
-# Function to save the consolidated DataFrame with hyperlinks to a new Excel file
-def save_dataframe_to_excel_with_hyperlinks(df, output_excel_file):
-    """
-    Save the DataFrame with hyperlinks to a new Excel file.
-    
-    Parameters:
-        df (pd.DataFrame): The DataFrame to save.
-        output_excel_file (str): The path where the Excel file will be saved.
-    """
-    wb = Workbook()
-    ws = wb.active
-    
-    # Write the DataFrame to the Excel sheet
-    for row in dataframe_to_rows(df, index=False, header=True):
-        ws.append(row)
-    
-    # Save the file
-    wb.save(output_excel_file)
-    print(f"Consolidated Excel file with hyperlinks saved to {output_excel_file}")
+
 
 # Example Usage
 excel_file = "test.xlsx"  # Path to your Excel file
