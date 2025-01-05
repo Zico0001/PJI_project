@@ -86,7 +86,7 @@ def main():
         address_column="Address"
         people_column="People Attended"
         img_column="Img"
-        api_key="pk.eeaf9adb5547b0b1b74eba4722e2ccf8"
+        api_key="******************"
         df = add_geocoded_columns_to_excel(uploaded_file, address_column, people_column, img_column, api_key)
 
         data = df.to_dict(orient="records")
