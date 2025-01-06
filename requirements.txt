@@ -3,3 +3,4 @@ folium==0.14.0
 pandas==2.0.3  
 streamlit-folium==0.16.0
 python-dotenv==1.0.0
+openpyxl==latest
