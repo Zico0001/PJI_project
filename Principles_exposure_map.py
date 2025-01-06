@@ -1,213 +1,250 @@
-import streamlit as st
 import pandas as pd
+import requests
+import time
+import streamlit as st
 import folium
+from folium.plugins import MarkerCluster
+from streamlit_folium import folium_static
 import base64
 import os
-from folium.plugins import MarkerCluster
-from streamlit_folium import st_folium
+from dotenv import load_dotenv
 
-# Function to generate the map based on the selected year and workshop
-def generate_map(data, year=None, names=None):
-    if year == "All Years":
-        f_data = data
-        if names == "All Workshops":
-            filtered_data = f_data
-        else:
-            filtered_data = [d for d in f_data if d["name"] == names]
-    else:
-        f_data = [d for d in data if d["Year"] == year]
-        if names == "All Workshops":
-            filtered_data = f_data
-        else:
-            filtered_data = [d for d in f_data if d["name"] == names]
+# Load environment variables from .env file
+load_dotenv()
 
-    m = folium.Map(location=[28, -82], zoom_start=5, tiles='cartodb dark_matter')
-        
-    # Add total people served and total projects as a title
-    total_people_attended = 19150  # Replace with your actual data
-    total_workshops = 1200  # Replace with your actual data
+# Get the API key from the environment variable
+api_key = os.getenv("API_KEY")
 
-    # Add JavaScript for interactivity
-    m.get_root().html.add_child(folium.Element("""
-    <style>
-        #map-container {
-            position: relative;
-            width: 100%;
-            height: 100vh;
+@st.cache_data
+def geocode_address_locationiq(address, api_key, retries=3):
+    """Geocode an address using LocationIQ API."""
+    url = f"https://us1.locationiq.com/v1/search.php?key={api_key}&q={address}&format=json"
+
+    for attempt in range(retries):
+        try:
+            response = requests.get(url)
+            data = response.json()
+
+            if len(data) > 0:
+                lat = data[0]['lat']
+                lon = data[0]['lon']
+                return float(lat), float(lon)
+            else:
+                print(f"Could not geocode address: {address}")
+                return None, None
+        except Exception as e:
+            print(f"Error geocoding {address}: {e}")
+            if attempt < retries - 1:
+                print("Retrying...")
+                time.sleep(2)  # Adding a delay before retry
+            else:
+                print("Max retries reached. Could not geocode address.")
+                return None, None
+
+def convert_google_drive_url(url):
+    """Convert Google Drive URL to direct link."""
+    if "drive.google.com" in url:
+        file_id = url.split('/')[-2]
+        return f"https://drive.google.com/uc?export=view&id={file_id}"
+    return url
+
+def add_geocoded_columns_to_excel(excel_file, address_column, people_column, img_column, api_key):
+    """Add geocoded columns to an Excel file."""
+    xls = pd.ExcelFile(excel_file)
+    all_data = []
+
+    for sheet_name in xls.sheet_names:
+        print(f"Processing sheet: {sheet_name}")
+        data = pd.read_excel(xls, sheet_name=sheet_name)
+        data = data[[address_column, people_column, img_column]]
+
+        # Skip sheets without the necessary columns
+        if address_column not in data.columns or people_column not in data.columns or img_column not in data.columns:
+            print(f"Skipping sheet '{sheet_name}' - Missing required columns.")
+            continue
+
+        # Add Latitude and Longitude columns if they don't exist
+        if "Latitude" not in data.columns:
+            data["Latitude"] = None
+        if "Longitude" not in data.columns:
+            data["Longitude"] = None
+
+        # Geocode each address and add latitude/longitude
+        progress_bar = st.progress(0)
+        for idx, address in enumerate(data[address_column]):
+            if pd.notna(address) and not data.at[idx, "Latitude"]:
+                lat, lon = geocode_address_locationiq(address, api_key)
+                if lat is not None and lon is not None:
+                    data.at[idx, "Latitude"] = lat
+                    data.at[idx, "Longitude"] = lon
+                    print(f"Geocoded '{address}': Latitude = {lat}, Longitude = {lon}")
+            progress_bar.progress((idx + 1) / len(data))
+
+        # Append the data from this sheet to the all_data list
+        all_data.append(data)
+
+    # Consolidate all sheets into one DataFrame
+    consolidated_data = pd.concat(all_data, ignore_index=True)
+
+    # Convert the 'Img' column to hyperlinks for Excel export
+    def create_hyperlink_formula(url):
+        return f'=HYPERLINK("{url}", "{url}")' if pd.notna(url) else None
+
+    consolidated_data[img_column] = consolidated_data[img_column].apply(create_hyperlink_formula)
+
+    return consolidated_data
+
+def generate_map(data):
+    """Generate a map from the given data."""
+    # Create a map centered around the average latitude and longitude
+    avg_lat = sum(entry["Latitude"] for entry in data) / len(data)
+    avg_lon = sum(entry["Longitude"] for entry in data) / len(data)
+    m = folium.Map(location=[avg_lat, avg_lon], zoom_start=10, tiles='CartoDB dark_matter')
+
+    # Add a banner to the top of the map
+    banner_html = """
+        <div style="position: fixed;
+                    top: 0;
+                    left: 0;
+                    width: 100%;
+                    heigth: 150px;
+                    background-color: #111;
+                    color: white;
+                    padding: 10px 20px;
+                    font-family: Arial, sans-serif;
+                    z-index: 9999;
+                    display: flex;
+                    justify-content: space-between;
+                    align-items: center;">
+            <h1 style="margin: 0; font-size: 2rem;">Principles Exposure Map</h1>
+            <div style="display: flex; gap: 20px;">
+                <div style="text-align: center;">
+                    <p style="margin: 0; font-size: 1.2rem;">3407</p>
+                    <p style="margin: 0; font-size: 1.2rem;">people attended</p>
+                </div>
+                <div style="text-align: center;">
+                    <p style="margin: 0; font-size: 1rem;">70</p>
+                    <p style="margin: 0; font-size: 1rem;">location</p>
+                </div>
+
+            </div>
+        </div>
+    """
+    m.get_root().html.add_child(folium.Element(banner_html))
+
+    # Create a MarkerCluster with custom icons
+    marker_cluster = MarkerCluster(
+        icon_create_function="""
+        function(cluster) {
+            var markers = cluster.getAllChildMarkers();
+            var totalPeople = 0;
+            for (var i = 0; i < markers.length; i++) {
+                var tooltipContent = markers[i].getTooltip().getContent();
+                var peopleAttended = parseInt(tooltipContent.match(/(\d+) people Attended/)[1]);
+                totalPeople += peopleAttended;
+            }
+            var c = ' marker-cluster-';
+            if (totalPeople < 10) {
+                c += 'small';
+            } else if (totalPeople < 100) {
+                c += 'medium';
+            } else {
+                c += 'large';
+            }
+            return new L.DivIcon({ html: '<div><span>' + totalPeople + '</span></div>', className: 'marker-cluster' + c, iconSize: new L.Point(40, 40) });
         }
-        #controls {
-            position: absolute;
-            top: 5px;
-            left: 50%;
-            transform: translateX(-50%);
-            z-index: 1000;
-            background: rgba(0,0,0,0.7);
-            padding: 10px;
-            border-radius: 5px;
-        }
-        #total-info {
-            position: absolute;
-            top: 40px;
-            left: 50%;
-            transform: translateX(-50%);
-            z-index: 1000;
-            background: rgba(205, 127, 50, 0.7);
-            color: white;
-            padding: 10px;
-            border-radius: 5px;
-            text-align: center;
-        }
-    </style>
-    <div id="controls">
-        <select id="year-select">
-            <option value="">All Years</option>
-        </select>
-        <select id="name-select">
-            <option value="">All Workshops</option>
-        </select>
-    </div>
-    <div id="total-info">
-        number of People Exposed to PJI Principles: 0 | Total Workshops: 0
-    </div>
-    <script>
-    document.addEventListener('DOMContentLoaded', function() {
-        // Extract unique years and names
-        const data = """ + str(data) + """;
-        const yearSelect = document.getElementById('year-select');
-        const nameSelect = document.getElementById('name-select');
-        const totalInfo = document.getElementById('total-info');
+        """
+    ).add_to(m)
 
-        // Populate year dropdown
-        const years = [...new Set(data.map(d => d.Year))].sort();
-        years.forEach(year => {
-            const option = document.createElement('option');
-            option.value = year;
-            option.textContent = year;
-            yearSelect.appendChild(option);
-        });
+    # Define data with actual image URLs from Wikimedia Commons
+    # Add markers for the filtered data
+    circle_scaling_factor = 0.1  # Adjust this factor to scale the circle sizes appropriately
 
-        // Populate name dropdown
-        const names = [...new Set(data.map(d => d.name))].sort();
-        names.forEach(name => {
-            const option = document.createElement('option');
-            option.value = name;
-            option.textContent = name;
-            nameSelect.appendChild(option);
-        });
+    for entry in data:
+        # Calculate radius based on people served
+        radius = int(entry["People Attended"]) * circle_scaling_factor
 
-        // Marker cluster group
-        const markers = L.markerClusterGroup();
+        # Convert Google Drive URL to direct link
+        img_url = convert_google_drive_url(entry['Img'])
+        print(f"Converted URL: {img_url}")  # Debugging: Print the converted URL
 
-        // Function to filter and display markers
-        function updateMarkers() {
-            // Clear existing markers
-            markers.clearLayers();
-
-            // Filter data
-            const selectedYear = yearSelect.value;
-            const selectedName = nameSelect.value;
-
-            const filteredData = data.filter(entry =>
-                (selectedYear === '' || entry.Year == selectedYear) &&
-                (selectedName === '' || entry.name === selectedName)
-            );
-
-            // Update total info
-            const totalPeopleserved = filteredData.reduce((sum, entry) => sum + entry.people_served, 0);
-            const totalWorkshops = filteredData.length;
-            totalInfo.innerHTML = `Number of People Exposed to PJI Principles: ${totalPeopleserved.toLocaleString()} | Total Workshops: ${totalWorkshops}`;
-
-            // Add markers
-            filteredData.forEach(entry => {
-                const radius = Math.max(5, entry.people_served * 0.001);
-                const marker = L.circleMarker([entry.lat, entry.lon], {
-                    radius: radius,
-                    color: 'yellow',
-                    fillColor: 'yellow',
-                    fillOpacity: 0.7
-                });
-
-                // Add tooltip
-                marker.bindTooltip(`
-                    <div style="width:200px;">
-                        <h4>${entry.name} Workshop</h4>
-                        <p>${entry.people_served} people served</p>
-                        <img src="${entry.image_url}" width="180px">
-                    </div>
-                `);
-
-                markers.addLayer(marker);
-            });
-        }
-
-        // Add event listeners
-        yearSelect.addEventListener('change', updateMarkers);
-        nameSelect.addEventListener('change', updateMarkers);
-
-        // Initial marker update
-        updateMarkers();
-    });
-    </script>
-    """))    
-    
-    
-    marker_cluster = MarkerCluster().add_to(m)
-    circle_scaling_factor = 0.001
-
-    for entry in filtered_data:
-        radius = int(entry["people_served"]) * circle_scaling_factor
+        # Tooltip content for hover
         tooltip_content = f"""
-        <div style="width:150px">
-            <h4>{entry['name'] + ' Workshop'}</h4>
-            <p>{entry['people_served']} people served</p>
-            <img src="{entry['image_url']}" width="150px">
+        <div style="width:150px; text-align:center;">
+            <p>{entry['People Attended']} people Attended</p>
+            <img src= {entry['Img']} width="150px">
         </div>
         """
-        marker = folium.CircleMarker(
-            location=[entry["lat"], entry["lon"]],
-            radius=radius,
-            color="orange",
-            fill=True,
-            fill_color="orange",
-            fill_opacity=0.7,
-            tooltip=folium.Tooltip(tooltip_content),
-        )
-        marker.add_to(marker_cluster)
-    return m
+        print(f"Tooltip content: {tooltip_content}")  # Debugging: Print the tooltip content
 
-# Streamlit app
+        # Popup content for click
+        popup_html = f"""
+        <html><body>
+            <img src="{img_url}" width="150px">
+        </body></html>
+        """
+
+        # Add the circle marker to the marker cluster
+        marker = folium.CircleMarker(
+            location=[entry["Latitude"], entry["Longitude"]],
+            radius=radius,
+            color="yellow",
+            fill=True,
+            fill_color="yellow",
+            fill_opacity=0.7,
+            tooltip=folium.Tooltip(tooltip_content, sticky=True),
+            popup=folium.Popup(popup_html, max_width=300)
+        )
+
+        marker.add_to(marker_cluster)
+
+    # Save the map as an HTML file
+    map_html = 'Principles_Map.html'
+    m.save(map_html)
+
+    return m, map_html
+
 def main():
-    st.title("PJI Principles Map Viewer")
+    # Stylish title using HTML and CSS
+    st.markdown("""
+        <style>
+        .title {
+            font-size: 36px;
+            font-weight: bold;
+            color: orange;
+            background-color: white;
+            padding: 10px;
+            border-radius: 10px;
+            text-align: center;
+            margin-bottom: 20px;
+        }
+        </style>
+        <div class="title">PJI Principles Map Viewer</div>
+    """, unsafe_allow_html=True)
 
     # Upload dataset
-    uploaded_file = st.file_uploader("Upload your dataset (CSV format):", type=["csv"])
+    uploaded_file = st.file_uploader("Upload your dataset (Excel Format only, column names: Address, People Attended and Img):", type=["xlsx"])
     if uploaded_file:
-        df = pd.read_csv(uploaded_file)
+        address_column = "Address"
+        people_column = "People Attended"
+        img_column = "Img"
+        df = add_geocoded_columns_to_excel(uploaded_file, address_column, people_column, img_column, api_key)
+
         data = df.to_dict(orient="records")
-
-        st.sidebar.header("Filter Options")
-
-        # Dropdowns for filtering
-        years = ["All Years"] + sorted(set(d["Year"] for d in data))
-        names = ["All Workshops"] + sorted(set(d["name"] for d in data))
-        selected_year = st.sidebar.selectbox("Select Year", years)
-        selected_workshop = st.sidebar.selectbox("Select Workshop", names)
-
+        
         # Generate and display the map
-        map_object = generate_map(data, year=selected_year, names=selected_workshop)
-        map_html = st_folium(map_object, width=800, height=600)
+        map_object, map_html = generate_map(data)
+        folium_static(map_object, width=800, height=600)
 
-        # Button to save/export map as HTML
-        if st.button("Save Map as HTML"):
-            map_object.save('Principles_Map.html')
-            
-            # Generate download link
-            with open("Principles_Map.html", "rb") as f:
-               html_bytes = f.read()
-            encoded_html = base64.b64encode(html_bytes).decode()
-            href = f'<a href="data:text/html;base64,{encoded_html}" download="Principles_Map.html">Download HTML File</a>'
-            st.markdown(href, unsafe_allow_html=True)
-            st.success("Map has been saved as 'Principles_Map.html' in your working directory.")
+        # Button to download the map as HTML
+        with open(map_html, "rb") as f:
+            html_bytes = f.read()
+        st.download_button(
+            label="Download Map as HTML",
+            data=html_bytes,
+            file_name="Principles_Map.html",
+            mime="text/html"
+        )
 
 if __name__ == "__main__":
     main()
