@@ -13,8 +13,8 @@ from dotenv import load_dotenv
 #load_dotenv()
 
 # Get the API key from the environment variable
-#api_key = os.getenv("API_KEY")
 api_key = st.secrets["API_KEY"]
+
 @st.cache_data
 def geocode_address_locationiq(address, api_key, retries=3):
     """Geocode an address using LocationIQ API."""
@@ -30,15 +30,15 @@ def geocode_address_locationiq(address, api_key, retries=3):
                 lon = data[0]['lon']
                 return float(lat), float(lon)
             else:
-                print(f"Could not geocode address: {address}")
+                #print(f"Could not geocode address: {address}")
                 return None, None
         except Exception as e:
-            print(f"Error geocoding {address}: {e}")
+            #print(f"Error geocoding {address}: {e}")
             if attempt < retries - 1:
-                print("Retrying...")
+                #print("Retrying...")
                 time.sleep(2)  # Adding a delay before retry
             else:
-                print("Max retries reached. Could not geocode address.")
+                #print("Max retries reached. Could not geocode address.")
                 return None, None
 
 def convert_google_drive_url(url):
@@ -54,13 +54,13 @@ def add_geocoded_columns_to_excel(excel_file, address_column, people_column, img
     all_data = []
 
     for sheet_name in xls.sheet_names:
-        print(f"Processing sheet: {sheet_name}")
+        #print(f"Processing sheet: {sheet_name}")
         data = pd.read_excel(xls, sheet_name=sheet_name)
         data = data[[address_column, people_column, img_column]]
 
         # Skip sheets without the necessary columns
         if address_column not in data.columns or people_column not in data.columns or img_column not in data.columns:
-            print(f"Skipping sheet '{sheet_name}' - Missing required columns.")
+            #print(f"Skipping sheet '{sheet_name}' - Missing required columns.")
             continue
 
         # Add Latitude and Longitude columns if they don't exist
@@ -77,7 +77,7 @@ def add_geocoded_columns_to_excel(excel_file, address_column, people_column, img
                 if lat is not None and lon is not None:
                     data.at[idx, "Latitude"] = lat
                     data.at[idx, "Longitude"] = lon
-                    print(f"Geocoded '{address}': Latitude = {lat}, Longitude = {lon}")
+                    #print(f"Geocoded '{address}': Latitude = {lat}, Longitude = {lon}")
             progress_bar.progress((idx + 1) / len(data))
 
         # Append the data from this sheet to the all_data list
@@ -166,7 +166,7 @@ def generate_map(data):
 
         # Convert Google Drive URL to direct link
         img_url = convert_google_drive_url(entry['Img'])
-        print(f"Converted URL: {img_url}")  # Debugging: Print the converted URL
+        #print(f"Converted URL: {img_url}")  # Debugging: Print the converted URL
 
         # Tooltip content for hover
         tooltip_content = f"""
@@ -175,7 +175,7 @@ def generate_map(data):
             <img src= {entry['Img']} width="150px">
         </div>
         """
-        print(f"Tooltip content: {tooltip_content}")  # Debugging: Print the tooltip content
+        #print(f"Tooltip content: {tooltip_content}")  # Debugging: Print the tooltip content
 
         # Popup content for click
         popup_html = f"""
