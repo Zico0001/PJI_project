@@ -10,11 +10,11 @@ import os
 from dotenv import load_dotenv
 
 # Load environment variables from .env file
-load_dotenv()
+#load_dotenv()
 
 # Get the API key from the environment variable
-api_key = os.getenv("API_KEY")
-
+#api_key = os.getenv("API_KEY")
+api_key = st.secrets["API_KEY"]
 @st.cache_data
 def geocode_address_locationiq(address, api_key, retries=3):
     """Geocode an address using LocationIQ API."""
