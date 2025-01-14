@@ -15,6 +15,7 @@ from dotenv import load_dotenv
 # Get the API key from the environment variable
 api_key = st.secrets["API_KEY"]
 
+
 @st.cache_data
 def geocode_address_locationiq(address, api_key, retries=3):
     """Geocode an address using LocationIQ API."""
@@ -41,12 +42,7 @@ def geocode_address_locationiq(address, api_key, retries=3):
                 #print("Max retries reached. Could not geocode address.")
                 return None, None
 
-def convert_google_drive_url(url):
-    """Convert Google Drive URL to direct link."""
-    if "drive.google.com" in url:
-        file_id = url.split('/')[-2]
-        return f"https://drive.google.com/uc?export=view&id={file_id}"
-    return url
+
 
 def add_geocoded_columns_to_excel(excel_file, address_column, people_column, img_column, api_key):
     """Add geocoded columns to an Excel file."""
@@ -87,10 +83,7 @@ def add_geocoded_columns_to_excel(excel_file, address_column, people_column, img
     consolidated_data = pd.concat(all_data, ignore_index=True)
 
     # Convert the 'Img' column to hyperlinks for Excel export
-    def create_hyperlink_formula(url):
-        return f'=HYPERLINK("{url}", "{url}")' if pd.notna(url) else None
 
-    consolidated_data[img_column] = consolidated_data[img_column].apply(create_hyperlink_formula)
 
     return consolidated_data
 
@@ -100,9 +93,10 @@ def generate_map(data):
     avg_lat = sum(entry["Latitude"] for entry in data) / len(data)
     avg_lon = sum(entry["Longitude"] for entry in data) / len(data)
     m = folium.Map(location=[avg_lat, avg_lon], zoom_start=10, tiles='CartoDB dark_matter')
-
+    number_of_people = sum(entry["People Attended"] for entry in data)
+    num_locations = len(pd.unique([entry["Address"] for entry in data]))
     # Add a banner to the top of the map
-    banner_html = """
+    banner_html = f"""
         <div style="position: fixed;
                     top: 0;
                     left: 0;
@@ -119,11 +113,11 @@ def generate_map(data):
             <h1 style="margin: 0; font-size: 2rem;">Principles Exposure Map</h1>
             <div style="display: flex; gap: 20px;">
                 <div style="text-align: center;">
-                    <p style="margin: 0; font-size: 1.2rem;">3407</p>
+                    <p style="margin: 0; font-size: 1.2rem;">{number_of_people}</p>
                     <p style="margin: 0; font-size: 1.2rem;">people attended</p>
                 </div>
                 <div style="text-align: center;">
-                    <p style="margin: 0; font-size: 1rem;">70</p>
+                    <p style="margin: 0; font-size: 1rem;">{num_locations}</p>
                     <p style="margin: 0; font-size: 1rem;">location</p>
                 </div>
 
@@ -164,8 +158,8 @@ def generate_map(data):
         # Calculate radius based on people served
         radius = int(entry["People Attended"]) * circle_scaling_factor
 
-        # Convert Google Drive URL to direct link
-        img_url = convert_google_drive_url(entry['Img'])
+
+        img_url = entry['Img']
         #print(f"Converted URL: {img_url}")  # Debugging: Print the converted URL
 
         # Tooltip content for hover
